@@ -1,29 +1,66 @@
+/* script.js */
 document.addEventListener('DOMContentLoaded', () => {
-    const buttons = document.querySelectorAll('.buttons button');
+    const captchaImage = document.getElementById('captchaImage');
+    const buttonsContainer = document.querySelector('.buttons');
+    const h1 = document.querySelector('h1');
+    const tg = window.Telegram.WebApp;
 
-    buttons.forEach(button => {
-        button.addEventListener('click', () => {
-            const value = button.dataset.value;
-            if (window.Telegram && window.Telegram.WebApp) {
-                // Send the clicked button's data-value back to the bot
-                window.Telegram.WebApp.sendData(value);
-                // Optionally close the web app after sending data.
-                // For a multi-question quiz, you might not close immediately.
-                // For this preview, we close to show the bot's response.
-                window.Telegram.WebApp.close(); 
-            } else {
-                // Fallback for testing outside Telegram
-                alert('Telegram Web App not found. Running outside Telegram.');
-                console.log('Simulating data send:', value);
+    tg.ready();
+    tg.expand();
+
+    const getQuizDataFromUrl = () => {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const questionParam = urlParams.get('question');
+            if (questionParam) {
+                const decodedData = decodeURIComponent(questionParam);
+                return JSON.parse(decodedData);
             }
-        });
-    });
+        } catch (e) {
+            console.error("Failed to parse question data from URL:", e);
+        }
+        return null;
+    };
 
-    // Initialize Telegram Web App if available
-    if (window.Telegram && window.Telegram.WebApp) {
-        window.Telegram.WebApp.ready();
-        // Optional: Customize Web App appearance
-        // window.Telegram.WebApp.setHeaderColor('#2196F3'); // Blue header
-        // window.Telegram.WebApp.setBackgroundColor('#E0F2F7'); // Light blue background
+    const displayQuiz = (questionData) => {
+        if (!questionData || !questionData.image_url || !questionData.options) {
+            h1.textContent = 'Error';
+            captchaImage.alt = 'Could not load quiz. Please go back and try again.';
+            buttonsContainer.innerHTML = '';
+            return;
+        }
+
+        captchaImage.src = questionData.image_url;
+        captchaImage.alt = 'CAPTCHA Quiz Image';
+        buttonsContainer.innerHTML = '';
+
+        questionData.options.forEach(option => {
+            const button = document.createElement('button');
+            button.textContent = option;
+            button.dataset.value = option;
+            button.addEventListener('click', () => {
+                tg.sendData(button.dataset.value);
+                tg.close();
+            });
+            buttonsContainer.appendChild(button);
+        });
+
+        const changeButton = document.createElement('button');
+        changeButton.textContent = '🔁 Change Question';
+        changeButton.dataset.value = 'change';
+        changeButton.addEventListener('click', () => {
+            tg.sendData('change');
+            tg.close();
+        });
+        buttonsContainer.appendChild(changeButton);
+    };
+
+    const questionData = getQuizDataFromUrl();
+    if (questionData) {
+        displayQuiz(questionData);
+    } else {
+        h1.textContent = 'Quiz Not Found';
+        captchaImage.style.display = 'none';
+        buttonsContainer.innerHTML = '<p>No quiz data was provided. Please use the button in the bot to start the quiz.</p>';
     }
 });
